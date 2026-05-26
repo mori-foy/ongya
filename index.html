@@ -492,78 +492,69 @@
 <script>
 // ===== AUDIO =====
 let audioCtx = null;
+let masterGain = null;
 let isMuted = false;
 let cryLoopTimeout = null;
 
 function initAudio() {
   if (audioCtx) return;
   const AC = window.AudioContext || window.webkitAudioContext;
-  if (AC) audioCtx = new AC();
+  if (!AC) return;
+  audioCtx = new AC();
+  masterGain = audioCtx.createGain();
+  masterGain.connect(audioCtx.destination);
 }
 
 function toggleMute() {
   isMuted = !isMuted;
+  if (masterGain) masterGain.gain.setTargetAtTime(isMuted ? 0 : 1, audioCtx.currentTime, 0.05);
   document.getElementById('mute-btn').textContent = isMuted ? '🔇' : '🔊';
 }
 
-function playCry(vol = 0.22) {
-  if (!audioCtx || isMuted) return;
-  const now = audioCtx.currentTime;
+function dest() { return masterGain || (audioCtx && audioCtx.destination); }
 
+function playCry(vol = 0.22) {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
   const osc = audioCtx.createOscillator();
   const osc2 = audioCtx.createOscillator();
   const filter = audioCtx.createBiquadFilter();
   const g = audioCtx.createGain();
-
-  osc.type = 'sawtooth';
-  osc2.type = 'square';
-  filter.type = 'bandpass';
-  filter.frequency.value = 900;
-  filter.Q.value = 2.5;
-
-  // 泣き声の周波数カーブ
+  osc.type = 'sawtooth'; osc2.type = 'square';
+  filter.type = 'bandpass'; filter.frequency.value = 900; filter.Q.value = 2.5;
   osc.frequency.setValueAtTime(490, now);
   osc.frequency.linearRampToValueAtTime(790, now + 0.22);
   osc.frequency.linearRampToValueAtTime(580, now + 0.5);
   osc.frequency.linearRampToValueAtTime(730, now + 0.78);
   osc.frequency.linearRampToValueAtTime(460, now + 1.1);
-
   osc2.frequency.setValueAtTime(245, now);
   osc2.frequency.linearRampToValueAtTime(395, now + 0.22);
   osc2.frequency.linearRampToValueAtTime(290, now + 0.5);
   osc2.frequency.linearRampToValueAtTime(365, now + 0.78);
   osc2.frequency.linearRampToValueAtTime(230, now + 1.1);
-
   g.gain.setValueAtTime(0, now);
   g.gain.linearRampToValueAtTime(vol, now + 0.07);
   g.gain.setValueAtTime(vol, now + 0.95);
   g.gain.linearRampToValueAtTime(0, now + 1.15);
-
-  const g2 = audioCtx.createGain();
-  g2.gain.value = 0.35;
-
-  osc.connect(filter);
-  osc2.connect(g2); g2.connect(filter);
-  filter.connect(g);
-  g.connect(audioCtx.destination);
-
+  const g2 = audioCtx.createGain(); g2.gain.value = 0.35;
+  osc.connect(filter); osc2.connect(g2); g2.connect(filter);
+  filter.connect(g); g.connect(dest());
   osc.start(now); osc.stop(now + 1.2);
   osc2.start(now); osc2.stop(now + 1.2);
 }
 
 function playHappy() {
-  if (!audioCtx || isMuted) return;
+  if (!audioCtx) return;
   const now = audioCtx.currentTime;
   [480, 600, 720, 960].forEach((freq, i) => {
     const osc = audioCtx.createOscillator();
     const g = audioCtx.createGain();
-    osc.type = 'sine';
-    osc.frequency.value = freq;
+    osc.type = 'sine'; osc.frequency.value = freq;
     const t = now + i * 0.13;
     g.gain.setValueAtTime(0, t);
     g.gain.linearRampToValueAtTime(0.18, t + 0.04);
     g.gain.linearRampToValueAtTime(0, t + 0.22);
-    osc.connect(g); g.connect(audioCtx.destination);
+    osc.connect(g); g.connect(dest());
     osc.start(t); osc.stop(t + 0.25);
   });
 }
@@ -582,6 +573,86 @@ function startCryLoop() {
 function stopCryLoop() {
   if (cryLoopTimeout) { clearTimeout(cryLoopTimeout); cryLoopTimeout = null; }
 }
+
+// ===== BGM =====
+// 32拍のかわいいメロディー (C major)
+const BGM_MELODY = [
+  [523,1],[659,1],[784,1],[659,1],   // C5 E5 G5 E5
+  [698,1],[784,1],[880,2],            // F5 G5 A5(2)
+  [784,1],[659,1],[523,1],[659,1],   // G5 E5 C5 E5
+  [587,1],[494,1],[523,2],            // D5 B4 C5(2)
+  [440,1],[523,1],[659,1],[784,1],   // A4 C5 E5 G5
+  [659,1],[587,1],[523,2],            // E5 D5 C5(2)
+  [392,1],[440,1],[523,1],[659,1],   // G4 A4 C5 E5
+  [698,1],[523,1],[523,2],            // F5 C5 C5(2)
+];
+
+const BGM_BASS = [
+  [262,2],[392,2], [349,2],[392,2],
+  [262,2],[294,2], [262,4],
+  [220,2],[262,2], [349,2],[392,2],
+  [349,2],[262,2], [262,4],
+];
+
+let bgmPlaying = false;
+let bgmTimeoutId = null;
+
+function playBGMNote(freq, startTime, duration, vol, type = 'triangle') {
+  if (!audioCtx || freq === 0) return;
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  osc.type = type; osc.frequency.value = freq;
+  g.gain.setValueAtTime(0, startTime);
+  g.gain.linearRampToValueAtTime(vol, startTime + 0.03);
+  g.gain.setValueAtTime(vol * 0.8, startTime + duration * 0.75);
+  g.gain.linearRampToValueAtTime(0, startTime + duration);
+  osc.connect(g); g.connect(dest());
+  osc.start(startTime); osc.stop(startTime + duration + 0.05);
+}
+
+function scheduleBGM(loopStart) {
+  if (!bgmPlaying || !audioCtx) return;
+  const bpm = 92;
+  const beat = 60 / bpm;
+
+  let t = loopStart;
+  BGM_MELODY.forEach(([freq, beats]) => {
+    playBGMNote(freq, t, beats * beat * 0.82, 0.07);
+    t += beats * beat;
+  });
+
+  t = loopStart;
+  BGM_BASS.forEach(([freq, beats]) => {
+    playBGMNote(freq, t, beats * beat * 0.75, 0.04, 'sine');
+    t += beats * beat;
+  });
+
+  const totalBeats = BGM_MELODY.reduce((s, [, b]) => s + b, 0);
+  const loopDur = totalBeats * beat;
+  const nextStart = loopStart + loopDur;
+  const delay = (nextStart - audioCtx.currentTime - 0.25) * 1000;
+  bgmTimeoutId = setTimeout(() => scheduleBGM(nextStart), Math.max(50, delay));
+}
+
+function startBGM() {
+  if (!audioCtx || bgmPlaying) return;
+  bgmPlaying = true;
+  scheduleBGM(audioCtx.currentTime + 0.1);
+}
+
+function stopBGM() {
+  bgmPlaying = false;
+  if (bgmTimeoutId) { clearTimeout(bgmTimeoutId); bgmTimeoutId = null; }
+}
+
+// タイトル画面でも流れるよう、最初のユーザー操作でBGM開始
+['click', 'touchstart', 'keydown'].forEach(ev =>
+  document.addEventListener(ev, function onFirst() {
+    initAudio();
+    startBGM();
+    ['click', 'touchstart', 'keydown'].forEach(e => document.removeEventListener(e, onFirst));
+  }, { once: true, passive: true })
+);
 
 // ===== MAZE GENERATOR =====
 const CELL = 40;
@@ -886,6 +957,7 @@ function stageClear() {
 
   const maxStage = 7;
   if (stage >= maxStage) {
+    stopBGM();
     showScreen('screen-clear');
   } else {
     stage++;
@@ -904,6 +976,7 @@ function gameOver() {
   clearInterval(timerInterval);
   gameActive = false;
   stopCryLoop();
+  stopBGM();
   playCry(0.5);
   setTimeout(() => playCry(0.5), 500);
   document.getElementById('go-stage').textContent = `STAGE ${stage}`;
@@ -930,6 +1003,7 @@ function shareResultLine(isFullClear) {
 
 function startGame() {
   initAudio();
+  startBGM();
   stage = 1;
   showCountdown(() => startStage());
 }
