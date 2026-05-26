@@ -316,6 +316,55 @@
     0%, 100% { opacity: 1; }
     50% { opacity: 0.3; }
   }
+
+  .share-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .share-label {
+    font-size: 0.8rem;
+    color: #aaa;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+  }
+
+  .share-buttons {
+    display: flex;
+    gap: 12px;
+  }
+
+  .btn-share {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 50px;
+    font-size: 0.9rem;
+    font-family: 'M PLUS Rounded 1c', sans-serif;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-decoration: none;
+    color: white;
+  }
+
+  .btn-share:hover { transform: translateY(-2px); filter: brightness(1.1); }
+  .btn-share:active { transform: translateY(1px); }
+
+  .btn-share-x {
+    background: #000;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+
+  .btn-share-line {
+    background: #06C755;
+    box-shadow: 0 4px 12px rgba(6,199,85,0.4);
+  }
 </style>
 </head>
 <body>
@@ -384,6 +433,17 @@
     <div class="stat-num" id="go-stage">0</div>
     <div class="stat-label">ステージまで到達</div>
   </div>
+  <div class="share-area">
+    <div class="share-label">シェアする</div>
+    <div class="share-buttons">
+      <button class="btn-share btn-share-x" onclick="shareResult(false)">
+        𝕏 でシェア
+      </button>
+      <button class="btn-share btn-share-line" onclick="shareResultLine(false)">
+        LINE
+      </button>
+    </div>
+  </div>
   <button class="btn-start" style="background:linear-gradient(135deg,#FF6B6B,#FF8E53)" onclick="startGame()">もう一度！</button>
 </div>
 
@@ -393,6 +453,17 @@
   <div class="result-title success">すごい！！</div>
   <div class="result-sub">赤ちゃんが泣き止んだ！<br>あなたはオンギャーマネジメントの達人だ！</div>
   <div style="font-size:3rem">👶✨🍼</div>
+  <div class="share-area">
+    <div class="share-label">シェアする</div>
+    <div class="share-buttons">
+      <button class="btn-share btn-share-x" onclick="shareResult(true)">
+        𝕏 でシェア
+      </button>
+      <button class="btn-share btn-share-line" onclick="shareResultLine(true)">
+        LINE
+      </button>
+    </div>
+  </div>
   <button class="btn-start" onclick="startGame()">もう一度！</button>
 </div>
 
@@ -716,6 +787,24 @@ function gameOver() {
   gameActive = false;
   document.getElementById('go-stage').textContent = `STAGE ${stage}`;
   showScreen('screen-gameover');
+}
+
+function getShareText(isFullClear) {
+  if (isFullClear) {
+    return '👶✨ オンギャーマネジメント 全ステージクリア！\n赤ちゃんを泣き止ませることができました！\n#オンギャーマネジメント';
+  }
+  return `👶😭 オンギャーマネジメント\nステージ ${stage} まで進みました！\nあなたは何ステージいける？\n#オンギャーマネジメント`;
+}
+
+function shareResult(isFullClear) {
+  const text = getShareText(isFullClear);
+  const url = location.href;
+  window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, '_blank');
+}
+
+function shareResultLine(isFullClear) {
+  const text = getShareText(isFullClear) + '\n' + location.href;
+  window.open(`https://line.me/R/msg/text/?${encodeURIComponent(text)}`, '_blank');
 }
 
 function startGame() {
