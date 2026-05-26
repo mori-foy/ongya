@@ -306,6 +306,26 @@
 
   .stat-label { font-size: 0.8rem; color: #aaa; }
 
+  #mute-btn {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 200;
+    background: rgba(255,255,255,0.85);
+    border: 2px solid #E8D5C4;
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    font-size: 1.3rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transition: transform 0.1s;
+  }
+  #mute-btn:active { transform: scale(0.9); }
+
   .cry-wave {
     font-size: 1.5rem;
     letter-spacing: 4px;
@@ -368,6 +388,8 @@
 </style>
 </head>
 <body>
+
+<button id="mute-btn" onclick="toggleMute()" title="ミュート切替">🔊</button>
 
 <!-- floating bg -->
 <div class="floating-emoji" style="top:5%;left:8%;animation-delay:0s">🍼</div>
@@ -468,6 +490,99 @@
 </div>
 
 <script>
+// ===== AUDIO =====
+let audioCtx = null;
+let isMuted = false;
+let cryLoopTimeout = null;
+
+function initAudio() {
+  if (audioCtx) return;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (AC) audioCtx = new AC();
+}
+
+function toggleMute() {
+  isMuted = !isMuted;
+  document.getElementById('mute-btn').textContent = isMuted ? '🔇' : '🔊';
+}
+
+function playCry(vol = 0.22) {
+  if (!audioCtx || isMuted) return;
+  const now = audioCtx.currentTime;
+
+  const osc = audioCtx.createOscillator();
+  const osc2 = audioCtx.createOscillator();
+  const filter = audioCtx.createBiquadFilter();
+  const g = audioCtx.createGain();
+
+  osc.type = 'sawtooth';
+  osc2.type = 'square';
+  filter.type = 'bandpass';
+  filter.frequency.value = 900;
+  filter.Q.value = 2.5;
+
+  // 泣き声の周波数カーブ
+  osc.frequency.setValueAtTime(490, now);
+  osc.frequency.linearRampToValueAtTime(790, now + 0.22);
+  osc.frequency.linearRampToValueAtTime(580, now + 0.5);
+  osc.frequency.linearRampToValueAtTime(730, now + 0.78);
+  osc.frequency.linearRampToValueAtTime(460, now + 1.1);
+
+  osc2.frequency.setValueAtTime(245, now);
+  osc2.frequency.linearRampToValueAtTime(395, now + 0.22);
+  osc2.frequency.linearRampToValueAtTime(290, now + 0.5);
+  osc2.frequency.linearRampToValueAtTime(365, now + 0.78);
+  osc2.frequency.linearRampToValueAtTime(230, now + 1.1);
+
+  g.gain.setValueAtTime(0, now);
+  g.gain.linearRampToValueAtTime(vol, now + 0.07);
+  g.gain.setValueAtTime(vol, now + 0.95);
+  g.gain.linearRampToValueAtTime(0, now + 1.15);
+
+  const g2 = audioCtx.createGain();
+  g2.gain.value = 0.35;
+
+  osc.connect(filter);
+  osc2.connect(g2); g2.connect(filter);
+  filter.connect(g);
+  g.connect(audioCtx.destination);
+
+  osc.start(now); osc.stop(now + 1.2);
+  osc2.start(now); osc2.stop(now + 1.2);
+}
+
+function playHappy() {
+  if (!audioCtx || isMuted) return;
+  const now = audioCtx.currentTime;
+  [480, 600, 720, 960].forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    const t = now + i * 0.13;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.18, t + 0.04);
+    g.gain.linearRampToValueAtTime(0, t + 0.22);
+    osc.connect(g); g.connect(audioCtx.destination);
+    osc.start(t); osc.stop(t + 0.25);
+  });
+}
+
+function startCryLoop() {
+  stopCryLoop();
+  playCry(0.2);
+  function loop() {
+    if (!gameActive) return;
+    playCry(0.2);
+    cryLoopTimeout = setTimeout(loop, 2300);
+  }
+  cryLoopTimeout = setTimeout(loop, 2300);
+}
+
+function stopCryLoop() {
+  if (cryLoopTimeout) { clearTimeout(cryLoopTimeout); cryLoopTimeout = null; }
+}
+
 // ===== MAZE GENERATOR =====
 const CELL = 40;
 const canvas = document.getElementById('maze-canvas');
@@ -737,6 +852,7 @@ function startStage() {
 
   gameActive = true;
   showScreen('screen-game');
+  startCryLoop();
 
   clearInterval(timerInterval);
   timerInterval = setInterval(() => {
@@ -765,6 +881,8 @@ function updateTimer() {
 function stageClear() {
   clearInterval(timerInterval);
   gameActive = false;
+  stopCryLoop();
+  playHappy();
 
   const maxStage = 7;
   if (stage >= maxStage) {
@@ -785,6 +903,9 @@ function stageClear() {
 function gameOver() {
   clearInterval(timerInterval);
   gameActive = false;
+  stopCryLoop();
+  playCry(0.5);
+  setTimeout(() => playCry(0.5), 500);
   document.getElementById('go-stage').textContent = `STAGE ${stage}`;
   showScreen('screen-gameover');
 }
@@ -808,6 +929,7 @@ function shareResultLine(isFullClear) {
 }
 
 function startGame() {
+  initAudio();
   stage = 1;
   showCountdown(() => startStage());
 }
