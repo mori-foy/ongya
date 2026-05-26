@@ -59,6 +59,41 @@
     66% { transform: translateY(10px) rotate(-5deg); }
   }
 
+  #screen-countdown {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,248,240,0.85);
+    backdrop-filter: blur(4px);
+  }
+
+  #screen-countdown.active { display: flex !important; }
+
+  .countdown-num {
+    font-family: 'Kaisei Decol', serif;
+    font-size: clamp(6rem, 30vw, 10rem);
+    font-weight: 700;
+    color: var(--dark);
+    text-shadow: 4px 4px 0 var(--peach);
+    animation: countPop 0.9s ease-out forwards;
+  }
+
+  .countdown-num.go {
+    color: var(--pink);
+    text-shadow: 4px 4px 0 #d4607a;
+  }
+
+  @keyframes countPop {
+    0%   { transform: scale(1.8); opacity: 0; }
+    30%  { transform: scale(1);   opacity: 1; }
+    80%  { transform: scale(1);   opacity: 1; }
+    100% { transform: scale(0.6); opacity: 0; }
+  }
+
   #screen-title, #screen-game, #screen-gameover, #screen-clear {
     position: relative;
     z-index: 10;
@@ -292,6 +327,11 @@
 <div class="floating-emoji" style="top:80%;right:8%;animation-delay:3s">🍼</div>
 <div class="floating-emoji" style="top:40%;left:2%;animation-delay:4s">💫</div>
 <div class="floating-emoji" style="top:50%;right:3%;animation-delay:1.5s">🌟</div>
+
+<!-- COUNTDOWN OVERLAY -->
+<div id="screen-countdown">
+  <div class="countdown-num" id="countdown-text">3</div>
+</div>
 
 <!-- TITLE SCREEN -->
 <div id="screen-title" class="active">
@@ -680,7 +720,37 @@ function gameOver() {
 
 function startGame() {
   stage = 1;
-  startStage();
+  showCountdown(() => startStage());
+}
+
+function showCountdown(callback) {
+  const overlay = document.getElementById('screen-countdown');
+  const text = document.getElementById('countdown-text');
+  const steps = ['3', '2', '1', 'GO!'];
+  let i = 0;
+
+  overlay.classList.add('active');
+
+  function tick() {
+    text.className = 'countdown-num' + (steps[i] === 'GO!' ? ' go' : '');
+    text.textContent = steps[i];
+    // restart animation
+    text.style.animation = 'none';
+    text.offsetHeight;
+    text.style.animation = '';
+
+    i++;
+    if (i < steps.length) {
+      setTimeout(tick, 900);
+    } else {
+      setTimeout(() => {
+        overlay.classList.remove('active');
+        callback();
+      }, 900);
+    }
+  }
+
+  tick();
 }
 </script>
 </body>
