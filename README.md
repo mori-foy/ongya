@@ -47,3 +47,5 @@ git clone https://github.com/mori-foy/ongya.git
 ## 📣 シェア機能
 
 クリア・ゲームオーバー時に X（Twitter）・LINE へ結果をシェアできます。
+
+<!-- updated: 2026-07-04T08:01:53Z -->
